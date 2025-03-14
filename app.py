@@ -69,7 +69,7 @@ BOT_TOKEN = "640108494:Y4Hr2wDc8hdMjMUZPJ5DqL7j8GfSwJIETGpwMH12"
 # Validate initData
 def validate_init_data(init_data):
     print(f"init_data type{type(init_data)}")
-    print(f"init_data: {init_data}")
+    print(init_data)
     parsed_data = parse_qs(init_data)
     print(f"pars:{parsed_data}")
     print(f"parsed_data type: {parsed_data}")
