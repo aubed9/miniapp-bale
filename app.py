@@ -115,41 +115,28 @@ def parse_qs(query_string):
     return params
 
 # Your validate_init_data function
-def validate_init_data(init_data):
+def validate_init_data(init_data, BOT_TOKEN):
     print(f"init_data type: {type(init_data)}")
-    print(f"init_data: {init_data}")
+    print(f"Raw init_data: {init_data}")
     
-    # Parse the URL-encoded string
-    parsed_data = parse_qs(init_data)
+    # Step 1: Decode the entire string first
+    decoded_init_data = url_decode(init_data)
+    print(f"Decoded init_data: {decoded_init_data}")
+    
+    # Step 2: Parse the decoded string
+    parsed_data = parse_qs(decoded_init_data)  # Use the decoded string here
     print(f"parsed_data: {parsed_data}")
-    print(f"parsed_data type: {type(parsed_data)}")
     
-    # Convert values to single strings (if they are lists)
+    # Rest of your existing code...
     data_dict = {k: v[0] if isinstance(v, list) else v for k, v in parsed_data.items()}
     print(f"dict: {data_dict}")
     
-    # Extract the hash value
     hash_value = data_dict.pop('hash', None)
     print(f"hash: {hash_value}")
     if not hash_value:
         return False, "Missing hash in initData"
     
-    # Create the data_check_string
-    sorted_keys = sorted(data_dict.keys())
-    data_check_string = "\n".join([f"{k}={data_dict[k]}" for k in sorted_keys])
-    print(f"data_check_string: {data_check_string}")
-    
-    # Compute the secret key and check hash
-    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
-    check_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    print(f"check_hash: {check_hash}")
-    
-    # Validate the hash
-    if check_hash != hash_value:
-        return False, "Invalid hash, data may be tampered"
-    
-    return True, data_dict
-
+    # ... (rest of your hash validation logic)
 # Routes
 @app.route('/register', methods=['POST'])
 def register():
