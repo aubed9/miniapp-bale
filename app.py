@@ -115,7 +115,7 @@ def parse_qs(query_string):
     return params
 
 # Your validate_init_data function
-def validate_init_data(init_data, BOT_TOKEN):
+def validate_init_data(init_data):
     print(f"init_data type: {type(init_data)}")
     print(f"Raw init_data: {init_data}")
     
