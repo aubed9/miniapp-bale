@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import mysql.connector
 import hmac
@@ -18,11 +18,11 @@ login_manager.login_view = "login"
 def init_db():
     try:
         conn = mysql.connector.connect(
-            host='annapurna.liara.cloud',     # replace with your MySQL host
-            user='root',          # replace with your MySQL username
+            host='annapurna.liara.cloud',
+            user='root',
             port=32002,
-            password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='users',     # replace with your database name
+            password='4zjqmEfeRhCqYYDhvkaODXD3',
+            database='users',
         )
         if conn.is_connected():
             print('Connected to MySQL.')
@@ -47,11 +47,11 @@ class User(UserMixin):
 def load_user(user_id):
     try:
         conn = mysql.connector.connect(
-            host='annapurna.liara.cloud',     # replace with your MySQL host
-            user='root',          # replace with your MySQL username
+            host='annapurna.liara.cloud',
+            user='root',
             port=32002,
-            password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='users',     # replace with your database name
+            password='4zjqmEfeRhCqYYDhvkaODXD3',
+            database='users',
         )
         cursor = conn.cursor()
         cursor.execute("SELECT id, bale_user_id, username FROM users WHERE id = %s", (user_id,))
@@ -64,40 +64,32 @@ def load_user(user_id):
         print(f"Error loading user: {e}")
         return None
 
-# Bot token (replace with your actual bot token)
-BOT_TOKEN = "640108494:Y4Hr2wDc8hdMjMUZPJ5DqL7j8GfSwJIETGpwMH12"  
+# Bot token
+BOT_TOKEN = "640108494:Y4Hr2wDc8hdMjMUZPJ5DqL7j8GfSwJIETGpwMH12"
 
 # Custom URL decoding functions
 def url_decode(s):
-    """Decode URL-encoded string with UTF-8 support"""
     bytes_list = []
     i = 0
     while i < len(s):
         if s[i] == '%':
             try:
-                # Decode percent-encoded byte
                 hex_code = s[i+1:i+3]
                 byte_val = int(hex_code, 16)
                 bytes_list.append(byte_val)
                 i += 3
             except (ValueError, IndexError):
-                # Invalid encoding, keep literal %
                 bytes_list.append(ord('%'))
                 i += 1
         elif s[i] == '+':
-            # Convert '+' to space
             bytes_list.append(0x20)
             i += 1
         else:
-            # Regular ASCII character
             bytes_list.append(ord(s[i]))
             i += 1
-    
-    # Convert bytes to UTF-8 string
     return bytes(bytes_list).decode('utf-8', errors='replace')
 
 def parse_qs(query_string):
-    """Parse a URL-encoded query string into a dictionary"""
     params = {}
     pairs = query_string.split('&')
     for pair in pairs:
@@ -107,7 +99,6 @@ def parse_qs(query_string):
         key = url_decode(parts[0])
         value = url_decode(parts[1]) if len(parts) > 1 else ''
         if key in params:
-            # Handle repeated keys by appending to a list
             if isinstance(params[key], list):
                 params[key].append(value)
             else:
@@ -118,49 +109,30 @@ def parse_qs(query_string):
 
 # Validate initData
 def validate_init_data(init_data):
-    print(f"init_data type: {type(init_data)}")
-    print(f"Raw init_data: {init_data}")
-    
-    # Step 1: Decode the entire string first
     decoded_init_data = url_decode(init_data)
-    print(f"Decoded init_data: {decoded_init_data}")
-    
-    # Step 2: Parse the decoded string
-    parsed_data = parse_qs(decoded_init_data)  # Use the decoded string here
-    print(f"parsed_data: {parsed_data}")
-    
-    # Rest of your existing code...
+    parsed_data = parse_qs(decoded_init_data)
     data_dict = {k: v[0] if isinstance(v, list) else v for k, v in parsed_data.items()}
-    print(f"dict: {data_dict}")
-    
     hash_value = data_dict.pop('hash', None)
-    print(f"hash: {hash_value}")
     if not hash_value:
         return False, "Missing hash in initData"
-    
     sorted_keys = sorted(data_dict.keys())
     data_check_string = "\n".join([f"{k}={data_dict[k]}" for k in sorted_keys])
-    
     secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
     check_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    
     if check_hash != hash_value:
         return False, "Invalid hash, data may be tampered"
-    
     return True, data_dict
-    
+
 # Routes
 @app.route('/register', methods=['POST'])
 def register():
     init_data = request.get_json().get('initData')
     if not init_data:
         return jsonify({'error': 'Missing initData'}), 400
-    
     is_valid, result = validate_init_data(init_data)
     if not is_valid:
         return jsonify({'error': result}), 400
     data_dict = result
-    
     user_json = data_dict.get('user')
     if not user_json:
         return jsonify({'error': 'Missing user data'}), 400
@@ -170,7 +142,6 @@ def register():
         username = user_data.get('username', '')
     except (json.JSONDecodeError, KeyError):
         return jsonify({'error': 'Invalid user data'}), 400
-    
     try:
         conn = mysql.connector.connect(
             host='annapurna.liara.cloud',
@@ -184,12 +155,14 @@ def register():
         if cursor.fetchone():
             conn.close()
             return jsonify({'error': 'User already exists'}), 400
-        
         cursor.execute("INSERT INTO users (bale_user_id, username) VALUES (%s, %s)", 
                        (bale_user_id, username))
+        user_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        return jsonify({'message': 'User registered successfully'}), 201
+        user = User(user_id, bale_user_id, username)
+        login_user(user)
+        return jsonify({'message': 'User registered and logged in successfully'}), 201
     except Exception as e:
         print(f"Error in register: {e}")
         return jsonify({'error': 'Database error'}), 500
@@ -197,16 +170,12 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     init_data = request.get_json().get('initData')
-    print(f"init_data type{type(init_data)}")
-    print(init_data)
     if not init_data:
         return jsonify({'error': 'Missing initData'}), 400
-    
     is_valid, result = validate_init_data(init_data)
     if not is_valid:
         return jsonify({'error': result}), 400
     data_dict = result
-    
     user_json = data_dict.get('user')
     if not user_json:
         return jsonify({'error': 'Missing user data'}), 400
@@ -215,7 +184,6 @@ def login():
         bale_user_id = user_data['id']
     except (json.JSONDecodeError, KeyError):
         return jsonify({'error': 'Invalid user data'}), 400
-    
     try:
         conn = mysql.connector.connect(
             host='annapurna.liara.cloud',
@@ -228,7 +196,6 @@ def login():
         cursor.execute("SELECT id, bale_user_id, username FROM users WHERE bale_user_id = %s", (bale_user_id,))
         user_data = cursor.fetchone()
         conn.close()
-        
         if user_data:
             user = User(user_data[0], user_data[1], user_data[2])
             login_user(user)
@@ -242,7 +209,7 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return jsonify({'message': 'Logged out successfully'}), 200
+    return redirect(url_for('index'))
 
 @app.route('/protected')
 @login_required
@@ -251,6 +218,8 @@ def protected():
 
 @app.route('/')
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     return render_template_string('''
     <!DOCTYPE html>
     <html lang="en">
@@ -263,7 +232,6 @@ def index():
     <body>
         <h1>Auth Test</h1>
         <p id="status">Checking authentication...</p>
-        <a href="/logout">Logout</a> | <a href="/protected">Protected Route</a>
         <script>
             window.onload = function() {
                 if (typeof Bale !== 'undefined' && Bale.WebApp) {
@@ -276,9 +244,7 @@ def index():
                         })
                         .then(response => {
                             if (response.ok) {
-                                return response.json().then(data => {
-                                    document.getElementById('status').textContent = data.message;
-                                });
+                                window.location.href = '/dashboard';
                             } else if (response.status === 404) {
                                 return fetch('/register', {
                                     method: 'POST',
@@ -286,18 +252,18 @@ def index():
                                     body: JSON.stringify({ initData: initData })
                                 }).then(registerResponse => {
                                     if (registerResponse.ok) {
+                                        window.location.href = '/dashboard';
+                                    } else {
                                         return registerResponse.json().then(data => {
-                                            document.getElementById('status').textContent = data.message;
+                                            document.getElementById('status').textContent = 'Registration error: ' + data.error;
                                         });
                                     }
-                                    return registerResponse.json().then(data => {
-                                        document.getElementById('status').textContent = 'Error: ' + data.error;
-                                    });
+                                });
+                            } else {
+                                return response.json().then(data => {
+                                    document.getElementById('status').textContent = 'Login error: ' + data.error;
                                 });
                             }
-                            return response.json().then(data => {
-                                document.getElementById('status').textContent = 'Error: ' + data.error;
-                            });
                         })
                         .catch(error => {
                             document.getElementById('status').textContent = 'Fetch error: ' + error.message;
@@ -310,6 +276,24 @@ def index():
                 }
             };
         </script>
+    </body>
+    </html>
+    ''')
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Dashboard</title>
+    </head>
+    <body>
+        <h1>Welcome to the Dashboard, {{ current_user.username }}!</h1>
+        <a href="/logout">Logout</a>
     </body>
     </html>
     ''')
