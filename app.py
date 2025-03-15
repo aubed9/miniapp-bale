@@ -18,8 +18,9 @@ login_manager.login_view = "login"
 # MySQL database setup
 def init_db():
     try:
+        print("tring to connect to database")
         conn = mysql.connector.connect(
-            host='elastic_brahmagupta',     # replace with your MySQL host
+            host='annapurna.liara.cloud',     # replace with your MySQL host
             user='root',          # replace with your MySQL username
             password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
             database='users',     # replace with your database name
@@ -48,7 +49,7 @@ class User(UserMixin):
 def load_user(user_id):
     try:
         conn = mysql.connector.connect(
-            host='elastic_brahmagupta',     # replace with your MySQL host
+            host='annapurna.liara.cloud',     # replace with your MySQL host
             user='root',          # replace with your MySQL username
             password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
             database='users',     # replace with your database name
