@@ -8,8 +8,8 @@ import json
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'A1u3b8e0d@#'  # Replace with a secure key in production
-app.config['SESSION_COOKIE_SECURE'] = True  # If using HTTPS
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Adjust based on your cross-site requirements
+#app.config['SESSION_COOKIE_SECURE'] = True  # If using HTTPS
+#app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Adjust based on your cross-site requirements
 # Set up Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -238,22 +238,21 @@ def index():
                 if (typeof Bale !== 'undefined' && Bale.WebApp) {
                     const initData = Bale.WebApp.initData;
                     if (initData) {
-                        # In the JavaScript fetch calls within the index route's template string:
                         fetch('/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ initData: initData }),
-                            credentials: 'include'  // Added to send cookies
-                        }).then(response => {
+                            credentials: 'include'  // Add this line
+                        })
+                        .then(response => {
                             if (response.ok) {
                                 window.location.href = '/dashboard';
                             } else if (response.status === 404) {
-                                // And similarly for the register fetch:
-                                fetch('/register', {
+                                return fetch('/register', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ initData: initData }),
-                                    credentials: 'include'  // Added to send cookies
+                                    credentials: 'include'  // Add this line for register too
                                 }).then(registerResponse => {
                                     if (registerResponse.ok) {
                                         window.location.href = '/dashboard';
