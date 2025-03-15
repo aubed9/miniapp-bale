@@ -66,26 +66,85 @@ def load_user(user_id):
 # Bot token (replace with your actual bot token)
 BOT_TOKEN = "640108494:Y4Hr2wDc8hdMjMUZPJ5DqL7j8GfSwJIETGpwMH12"  
 
-# Validate initData
-def validate_init_data(init_data):
-    print(f"init_data type{type(init_data)}")
-    print(init_data[0])
+def url_decode(s):
+    """Decode URL-encoded string with UTF-8 support"""
+    bytes_list = []
+    i = 0
+    while i < len(s):
+        if s[i] == '%':
+            try:
+                # Decode percent-encoded byte
+                hex_code = s[i+1:i+3]
+                byte_val = int(hex_code, 16)
+                bytes_list.append(byte_val)
+                i += 3
+            except (ValueError, IndexError):
+                # Invalid encoding, keep literal %
+                bytes_list.append(ord('%'))
+                i += 1
+        elif s[i] == '+':
+            # Convert '+' to space
+            bytes_list.append(0x20)
+            i += 1
+        else:
+            # Regular ASCII character
+            bytes_list.append(ord(s[i]))
+            i += 1
+    
+    # Convert bytes to UTF-8 string
+    return bytes(bytes_list).decode('utf-8', errors='replace')
+
+def parse_qs(query_string):
+    """Parse a URL-encoded query string into a dictionary"""
+    params = {}
+    pairs = query_string.split('&')
+    for pair in pairs:
+        if not pair:
+            continue
+        parts = pair.split('=', 1)
+        key = url_decode(parts[0])
+        value = url_decode(parts[1]) if len(parts) > 1 else ''
+        if key in params:
+            # Handle repeated keys by appending to a list
+            if isinstance(params[key], list):
+                params[key].append(value)
+            else:
+                params[key] = [params[key], value]
+        else:
+            params[key] = value
+    return params
+
+# Your validate_init_data function
+def validate_init_data(init_data, BOT_TOKEN):
+    print(f"init_data type: {type(init_data)}")
+    print(f"init_data: {init_data}")
+    
+    # Parse the URL-encoded string
     parsed_data = parse_qs(init_data)
-    print(f"pars:{parsed_data}")
-    print(f"parsed_data type: {parsed_data}")
-    data_dict = {k: v[0] for k, v in parsed_data.items()}
+    print(f"parsed_data: {parsed_data}")
+    print(f"parsed_data type: {type(parsed_data)}")
+    
+    # Convert values to single strings (if they are lists)
+    data_dict = {k: v[0] if isinstance(v, list) else v for k, v in parsed_data.items()}
     print(f"dict: {data_dict}")
+    
+    # Extract the hash value
     hash_value = data_dict.pop('hash', None)
     print(f"hash: {hash_value}")
     if not hash_value:
         return False, "Missing hash in initData"
     
+    # Create the data_check_string
     sorted_keys = sorted(data_dict.keys())
     data_check_string = "\n".join([f"{k}={data_dict[k]}" for k in sorted_keys])
+    print(f"data_check_string: {data_check_string}")
     
+    # Compute the secret key and check hash
     secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
     check_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    print(f"check_hash: {check_hash}")
     
+    # Validate the hash
     if check_hash != hash_value:
         return False, "Invalid hash, data may be tampered"
     
