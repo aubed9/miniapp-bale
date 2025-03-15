@@ -5,6 +5,7 @@ import hmac
 import hashlib
 from urllib.parse import parse_qs
 import json
+import sqlite3
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -15,28 +16,16 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-# MySQL database setup
+# SQLite database setup
 def init_db():
-    try:
-        print("tring to connect to database")
-        conn = mysql.connector.connect(
-            host='annapurna.liara.cloud',     # replace with your MySQL host
-            user='root',          # replace with your MySQL username
-            password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='users',     # replace with your database name
-            port=32002,
-        )
-        if conn.is_connected():
-            print('Connected to MySQL.')
-            cursor = conn.cursor()
-            cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                             (id INT PRIMARY KEY AUTO_INCREMENT, 
-                              bale_user_id INT UNIQUE, 
-                              username TEXT)''')
-            conn.commit()
-            conn.close()
-    except Exception as e:
-        print(f"Error connecting to MySQL: {e}")
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  bale_user_id INTEGER UNIQUE, 
+                  username TEXT)''')
+    conn.commit()
+    conn.close()
 
 # User class for Flask-Login
 class User(UserMixin):
@@ -47,24 +36,14 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    try:
-        conn = mysql.connector.connect(
-            host='annapurna.liara.cloud',     # replace with your MySQL host
-            user='root',          # replace with your MySQL username
-            password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='users',     # replace with your database name
-            port=32002,
-        )
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, bale_user_id, username FROM users WHERE id = %s", (user_id,))
-        user_data = cursor.fetchone()
-        conn.close()
-        if user_data:
-            return User(user_data[0], user_data[1], user_data[2])
-        return None
-    except Exception as e:
-        print(f"Error loading user: {e}")
-        return None
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT id, bale_user_id, username FROM users WHERE id = ?", (user_id,))
+    user_data = c.fetchone()
+    conn.close()
+    if user_data:
+        return User(user_data[0], user_data[1], user_data[2])
+    return None
 
 # Bot token (replace with your actual bot token)
 BOT_TOKEN = "640108494:Y4Hr2wDc8hdMjMUZPJ5DqL7j8GfSwJIETGpwMH12"  
