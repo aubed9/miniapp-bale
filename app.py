@@ -136,7 +136,7 @@ def validate_init_data(init_data):
     if not hash_value:
         return False, "Missing hash in initData"
     
-    # ... (rest of your hash validation logic)
+    return True, data_dict
 # Routes
 @app.route('/register', methods=['POST'])
 def register():
