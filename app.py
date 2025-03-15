@@ -19,10 +19,11 @@ login_manager.login_view = "login"
 def init_db():
     try:
         conn = mysql.connector.connect(
-            host='miniapp',     # replace with your MySQL host
+            host='elastic_brahmagupta',     # replace with your MySQL host
             user='root',          # replace with your MySQL username
             password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='elastic_brahmagupta',     # replace with your database name
+            database='users',     # replace with your database name
+            port=32002,
         )
         if conn.is_connected():
             print('Connected to MySQL.')
@@ -47,10 +48,11 @@ class User(UserMixin):
 def load_user(user_id):
     try:
         conn = mysql.connector.connect(
-            host='miniapp',     # replace with your MySQL host
+            host='elastic_brahmagupta',     # replace with your MySQL host
             user='root',          # replace with your MySQL username
             password='4zjqmEfeRhCqYYDhvkaODXD3',           # replace with your MySQL password
-            database='elastic_brahmagupta',     # replace with your database name
+            database='users',     # replace with your database name
+            port=32002,
         )
         cursor = conn.cursor()
         cursor.execute("SELECT id, bale_user_id, username FROM users WHERE id = %s", (user_id,))
