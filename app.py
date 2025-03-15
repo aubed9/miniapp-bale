@@ -280,23 +280,10 @@ def index():
     </html>
     ''')
 
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET', 'POST'])  # Allows both
 @login_required
 def dashboard():
-    return render_template_string('''
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Dashboard</title>
-    </head>
-    <body>
-        <h1>Welcome to the Dashboard, {{ current_user.username }}!</h1>
-        <a href="/logout">Logout</a>
-    </body>
-    </html>
-    ''')
+    return "Welcome to the dashboard!"
 
 if __name__ == '__main__':
     init_db()
