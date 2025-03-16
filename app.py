@@ -174,8 +174,9 @@ def save_video():
         if not all([chat_id, url, name]):
             return jsonify({'error': 'Missing video properties'}), 400
 
+        
         try: 
-            client = Client("rayesh/previews")
+            client = Client("rayesh/previews", download_files="downloads")
             result = client.predict(
                     video_path=url,
                     api_name="/predict"
