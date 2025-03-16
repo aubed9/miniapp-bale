@@ -4,6 +4,7 @@ import mysql.connector
 import hmac
 import hashlib
 import json
+from gradio_client import Client, handle_file
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -172,11 +173,24 @@ def save_video():
         if not all([chat_id, url, name]):
             return jsonify({'error': 'Missing video properties'}), 400
 
-        # Save video data to the database
-        cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name) VALUES (%s, %s, %s, %s, %s)",
-                       (user_id, username, chat_id, url, name))
-        conn.commit()
-        conn.close()
+        try: 
+            client = Client("rayesh/previews")
+            result = client.predict(
+                    video_path={"video":handle_file(url)},
+                    api_name="/predict"
+            )
+            if result:
+                preview_images = ""
+                for i in result:
+                    preview_images+=f"{i},"
+                # Save video data to the database
+                cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
+                            (user_id, username, chat_id, url, name, preview_images))
+                conn.commit()
+                conn.close()
+
+        except:
+            return jsonify({'error': 'Missin preview images'}), 400
 
         return jsonify({'message': 'Video saved successfully'}), 201
 
