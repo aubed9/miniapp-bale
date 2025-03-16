@@ -176,7 +176,7 @@ def save_video():
         try: 
             client = Client("rayesh/previews")
             result = client.predict(
-                    video_path=url,
+                    video_path={"video":handle_file(url)},
                     api_name="/predict"
             )
             if result:
@@ -313,10 +313,106 @@ def index():
     </html>
     ''')
 
-@app.route('/dashboard', methods=['GET', 'POST'])  # Allows both
+# Add this function to fetch user videos
+def get_user_videos(user_id):
+    try:
+        conn = mysql.connector.connect(
+            host='annapurna.liara.cloud',
+            user='root',
+            port=32002,
+            password='4zjqmEfeRhCqYYDhvkaODXD3',
+            database='users'
+        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT username, chat_id, url, video_name, preview_images FROM videos WHERE user_id = %s", (user_id,))
+        videos = []
+        for row in cursor.fetchall():
+            videos.append({
+                'username': row[0],
+                'chat_id': row[1],
+                'url': row[2],
+                'video_name': row[3],
+                'preview_images': row[4].split(',') if row[4] else []
+            })
+        conn.close()
+        return videos
+    except Exception as e:
+        print(f"Error getting user videos: {e}")
+        return []
+
+# Modify the dashboard route to include video data
+@app.route('/dashboard', methods=['GET'])
 @login_required
 def dashboard():
-    return "Welcome to the dashboard!"
+    videos = get_user_videos(current_user.id)
+    return render_template_string("""<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Dashboard</title>
+    <style>
+        .video-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .video-card {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            width: 300px;
+            height: auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .video-name {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .preview-thumbnails {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .thumbnail {
+            width: 64px;
+            height: 48px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+        
+        .video-link {
+            color: blue;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to your Dashboard, {{ current_user.username }}!</h1>
+    
+    <div class="video-container">
+        {% for video in videos %}
+        <div class="video-card">
+            <div class="video-name">{{ video.video_name }}</div>
+            
+            <div class="preview-thumbnails">
+                {% for preview_image in video.preview_images %}
+                <img src="{{ preview_image }}" alt="Preview" class="thumbnail">
+                {% endfor %}
+            </div>
+            
+            <a href="{{ url_for('view_video', video_id=video.video_name|urlencode) }}" 
+               class="video-link">View Video</a>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
+""", videos=videos)
+
 
 if __name__ == '__main__':
     init_db()
