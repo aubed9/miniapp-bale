@@ -177,48 +177,34 @@ async def save_video():
 
         # Asynchronous Gradio request
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
+            try: 
                 client = Client("rayesh/previews", download_files="downloads")
                 result = client.predict(
                         video_path=url,
                         api_name="/predict"
                 )
-                if result: 
-                        #Database operations moved to executor to keep async context
-                        def db_operations():
-                            if preview_images:
-                                preview_str = ','.join(result)
-                                cursor.execute("""
-                                    INSERT INTO videos 
-                                    (user_id, username, chat_id, url, video_name, preview_images) 
-                                    VALUES (%s, %s, %s, %s, %s, %s)
-                                """, (user_id, username, chat_id, url, name, preview_str))
-                            else:
-                                cursor.execute("""
-                                    INSERT INTO videos 
-                                    (user_id, username, chat_id, url, video_name) 
-                                    VALUES (%s, %s, %s, %s, %s)
-                                """, (user_id, username, chat_id, url, name))
-                                
-                            conn.commit()
-                            conn.close()
-                
-                        # Run blocking database operations in executor
-                        await asyncio.get_event_loop().run_in_executor(None, db_operations)
-                
-                return jsonify({'message': 'Video saved successfully'}), 201
-
-            except httpx.HTTPStatusError as e:
-                return jsonify({'error': f'Gradio API error: {str(e)}'}), 502
-            except Exception as e:
-                return jsonify({'error': f'Preview processing failed: {str(e)}'}), 500
-
-    except mysql.connector.Error as db_err:
-        print(f"Database error: {db_err}")
-        return jsonify({'error': 'Database operation failed'}), 500
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        return jsonify({'error': 'Server error'}), 500
+                if result:
+                    print(result)
+                    preview_images = ""
+                    for i in result:
+                        preview_images+=f"{i},"
+                    # Save video data to the database
+                    cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
+                                (user_id, username, chat_id, url, name, preview_images))
+                    conn.commit()
+                    conn.close()
+    
+            except:
+                return jsonify({'error': 'Missin preview images'}), 400
+    
+            return jsonify({'message': 'Video saved successfully'}), 201
+    
+        except mysql.connector.Error as db_err:
+            print(f"Database error: {db_err}")
+            return jsonify({'error': 'Database operation failed'}), 500
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return jsonify({'error': 'Server error'}), 500
         
 
 @app.route('/login', methods=['POST'])
