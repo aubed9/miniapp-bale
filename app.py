@@ -1,4 +1,3 @@
-my code :
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import mysql.connector
