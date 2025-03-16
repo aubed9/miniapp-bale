@@ -8,8 +8,6 @@ from gradio_client import Client, handle_file
 import asyncio
 import httpx
 
-
-
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'A1u3b8e0d@#'  # Replace with a secure key in production
@@ -176,34 +174,15 @@ async def save_video():
             return jsonify({'error': 'Missing video properties'}), 400
 
         # Asynchronous Gradio request
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try: 
-                client = Client("rayesh/previews", download_files="downloads")
-                result = client.predict(
-                        video_path=url,
-                        api_name="/predict"
-                )
-                if result:
-                    print(result)
-                    preview_images = ""
-                    for i in result:
-                        preview_images+=f"{i},"
-                    # Save video data to the database
-                    try:
-                        cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
-                                    (user_id, username, chat_id, url, name, preview_images))
-                        conn.commit()
-                        conn.close()
-                    except mysql.connector.Error as db_err:
-                        print(f"Database error: {db_err}")
-                        return jsonify({'error': 'Database operation failed'}), 500
-    
-            except:
-                return jsonify({'error': 'Missin preview images'}), 400
-    
+        try:
+            cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name) VALUES (%s, %s, %s, %s, %s)",
+                        (user_id, username, chat_id, url, name))
+            conn.commit()
+            conn.close()
             return jsonify({'message': 'Video saved successfully'}), 201
-    
-
+        except mysql.connector.Error as db_err:
+            print(f"Database error: {db_err}")
+            return jsonify({'error': 'Database operation failed'}), 500
     except Exception as e:
         print(f"Unexpected error: {e}")
         return jsonify({'error': 'Server error'}), 500
@@ -425,8 +404,6 @@ async def dashboard():
 </body>
 </html>
 """, videos=videos)
-
-
 
 if __name__ == '__main__':
     init_db()
