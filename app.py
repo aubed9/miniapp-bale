@@ -6,6 +6,8 @@ import hashlib
 import json
 from gradio_client import Client, handle_file
 import asyncio
+import httpx
+
 
 # Initialize Flask app
 app = Flask(__name__)
