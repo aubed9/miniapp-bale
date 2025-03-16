@@ -5,6 +5,7 @@ import hmac
 import hashlib
 import json
 from gradio_client import Client, handle_file
+import asyncio
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -135,13 +136,14 @@ async def save_video():
     username = data.get('username')
     video_data = data.get('video')
     chat_id = data.get('chat_id')
+    
     # Validate required fields
     if not bale_user_id or not username or not video_data:
         return jsonify({'error': 'Missing bale_user_id, username, or video data'}), 400
 
     try:
-        # Connect to the database
-        conn = await mysql.connector.connect(
+        # Database connection setup
+        conn = mysql.connector.connect(
             host='annapurna.liara.cloud',
             user='root',
             port=32002,
@@ -150,55 +152,78 @@ async def save_video():
         )
         cursor = conn.cursor()
 
-        # Check if user exists by bale_user_id
+        # User handling
         cursor.execute("SELECT id FROM users WHERE bale_user_id = %s", (bale_user_id,))
         user = cursor.fetchone()
 
         if user:
-            # User exists, use their ID
             user_id = user[0]
             cursor.execute("UPDATE users SET chat_id = %s WHERE id = %s", (chat_id, user[0]))
         else:
-            # Register new user
             cursor.execute("INSERT INTO users (bale_user_id, username) VALUES (%s, %s)", 
                           (bale_user_id, username))
             conn.commit()
-            user_id = cursor.lastrowid  # Get the new user's ID
+            user_id = cursor.lastrowid
 
         # Extract video properties
-        
         url = video_data.get('url')
         name = video_data.get('video_name')
-
-        # Validate video properties
+        
         if not all([chat_id, url, name]):
             return jsonify({'error': 'Missing video properties'}), 400
 
-        
-        try: 
-            client = await Client("rayesh/previews", download_files="downloads")
-            result = await client.predict(
-                    video_path=url,
-                    api_name="/predict"
-            )
-            if result:
-                preview_images = ""
-                for i in result:
-                    preview_images+=f"{i},"
-                # Save video data to the database
-                await cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
-                            (user_id, username, chat_id, url, name, preview_images))
-                conn.commit()
-                conn.close()
+        # Asynchronous Gradio request
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    "https://rayesh-previews.hf.space/run/predict",
+                    json={"data": [url]}
+                )
+                response.raise_for_status()
+                result = response.json()["data"][0]
+                
+                preview_images = []
+                for img_path in result:
+                    if img_path.startswith('/tmp/gradio/'):
+                        filename = os.path.basename(img_path)
+                        preview_images.append(f'/gradio/{filename}')
+                        
+                # Database operations moved to executor to keep async context
+                def db_operations():
+                    if preview_images:
+                        preview_str = ','.join(preview_images)
+                        cursor.execute("""
+                            INSERT INTO videos 
+                            (user_id, username, chat_id, url, video_name, preview_images) 
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (user_id, username, chat_id, url, name, preview_str))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO videos 
+                            (user_id, username, chat_id, url, video_name) 
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (user_id, username, chat_id, url, name))
+                        
+                    conn.commit()
+                    conn.close()
+                
+                # Run blocking database operations in executor
+                await asyncio.get_event_loop().run_in_executor(None, db_operations)
+                
+                return jsonify({'message': 'Video saved successfully'}), 201
 
-        except:
-            return jsonify({'error': 'Missin preview images'}), 400
+            except httpx.HTTPStatusError as e:
+                return jsonify({'error': f'Gradio API error: {str(e)}'}), 502
+            except Exception as e:
+                return jsonify({'error': f'Preview processing failed: {str(e)}'}), 500
 
-        return jsonify({'message': 'Video saved successfully'}), 201
-
+    except mysql.connector.Error as db_err:
+        print(f"Database error: {db_err}")
+        return jsonify({'error': 'Database operation failed'}), 500
     except Exception as e:
-        print(f"Error in save_video: {e}")
-        return jsonify({'error': 'Database error'}), 500
+        print(f"Unexpected error: {e}")
+        return jsonify({'error': 'Server error'}), 500
+        
 
 @app.route('/login', methods=['POST'])
 async def login():
