@@ -1,3 +1,4 @@
+my code :
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import mysql.connector
@@ -5,7 +6,6 @@ import hmac
 import hashlib
 import json
 from gradio_client import Client, handle_file
-import httpx
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -127,28 +127,21 @@ def validate_init_data(init_data):
         return False, "Invalid hash, data may be tampered"
     return True, data_dict
 
-# Add this before your route definitions
-@app.route('/gradio/<path:filename>')
-def gradio_files(filename):
-    return send_from_directory('/tmp/gradio', filename)
-
 # Route to save video data
 @app.route('/save_video', methods=['POST'])
-async def save_video():
+def save_video():
     # Get JSON data from the bot request
     data = request.get_json()
     bale_user_id = data.get('user_id')
     username = data.get('username')
     video_data = data.get('video')
     chat_id = data.get('chat_id')
-
-    
     # Validate required fields
     if not bale_user_id or not username or not video_data:
         return jsonify({'error': 'Missing bale_user_id, username, or video data'}), 400
 
     try:
-        # Database connection setup
+        # Connect to the database
         conn = mysql.connector.connect(
             host='annapurna.liara.cloud',
             user='root',
@@ -158,77 +151,55 @@ async def save_video():
         )
         cursor = conn.cursor()
 
-        # User handling
+        # Check if user exists by bale_user_id
         cursor.execute("SELECT id FROM users WHERE bale_user_id = %s", (bale_user_id,))
         user = cursor.fetchone()
 
         if user:
+            # User exists, use their ID
             user_id = user[0]
             cursor.execute("UPDATE users SET chat_id = %s WHERE id = %s", (chat_id, user[0]))
         else:
+            # Register new user
             cursor.execute("INSERT INTO users (bale_user_id, username) VALUES (%s, %s)", 
                           (bale_user_id, username))
             conn.commit()
-            user_id = cursor.lastrowid
+            user_id = cursor.lastrowid  # Get the new user's ID
 
         # Extract video properties
+        
         url = video_data.get('url')
         name = video_data.get('video_name')
-        
+
+        # Validate video properties
         if not all([chat_id, url, name]):
             return jsonify({'error': 'Missing video properties'}), 400
 
-        # Asynchronous Gradio request
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.post(
-                    "https://rayesh-previews.hf.space/run/predict",
-                    json={"data": [url]}
-                )
-                response.raise_for_status()
-                result = response.json()["data"][0]
-                
-                preview_images = []
-                for img_path in result:
-                    if img_path.startswith('/tmp/gradio/'):
-                        filename = os.path.basename(img_path)
-                        preview_images.append(f'/gradio/{filename}')
-                        
-                # Database operations moved to executor to keep async context
-                def db_operations():
-                    if preview_images:
-                        preview_str = ','.join(preview_images)
-                        cursor.execute("""
-                            INSERT INTO videos 
-                            (user_id, username, chat_id, url, video_name, preview_images) 
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (user_id, username, chat_id, url, name, preview_str))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO videos 
-                            (user_id, username, chat_id, url, video_name) 
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (user_id, username, chat_id, url, name))
-                        
-                    conn.commit()
-                    conn.close()
-                
-                # Run blocking database operations in executor
-                await asyncio.get_event_loop().run_in_executor(None, db_operations)
-                
-                return jsonify({'message': 'Video saved successfully'}), 201
+        
+        try: 
+            client = Client("rayesh/previews", download_files="downloads")
+            result = client.predict(
+                    video_path=url,
+                    api_name="/predict"
+            )
+            if result:
+                preview_images = ""
+                for i in result:
+                    preview_images+=f"{i},"
+                # Save video data to the database
+                cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
+                            (user_id, username, chat_id, url, name, preview_images))
+                conn.commit()
+                conn.close()
 
-            except httpx.HTTPStatusError as e:
-                return jsonify({'error': f'Gradio API error: {str(e)}'}), 502
-            except Exception as e:
-                return jsonify({'error': f'Preview processing failed: {str(e)}'}), 500
+        except:
+            return jsonify({'error': 'Missin preview images'}), 400
 
-    except mysql.connector.Error as db_err:
-        print(f"Database error: {db_err}")
-        return jsonify({'error': 'Database operation failed'}), 500
+        return jsonify({'message': 'Video saved successfully'}), 201
+
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        return jsonify({'error': 'Server error'}), 500
+        print(f"Error in save_video: {e}")
+        return jsonify({'error': 'Database error'}), 500
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -424,105 +395,25 @@ def dashboard():
             color: blue;
             text-decoration: none;
         }
-        .thumbnail {
-            background: linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%);
-            background-size: 200% 100%;
-            animation: 1.5s shine linear infinite;
-        }
-        
-        @keyframes shine {
-            to {
-                background-position-x: -200%;
-            }
-        }
-        
-        img[data-loaded="true"] {
-            background: none;
-            animation: none;
-        }
-
     </style>
 </head>
 <body>
     <h1>Welcome to your Dashboard, {{ current_user.username }}!</h1>
+    
+    <div class="video-container">
+        {% for video in videos %}
         <div class="video-card">
-        <div class="video-name">{{ video.video_name }}</div>
-        
-        <div class="preview-thumbnails">
-            {% if video.preview_images %}
+            <div class="video-name">{{ video.video_name }}</div>
+            
+            <div class="preview-thumbnails">
                 {% for preview_image in video.preview_images %}
-                    <div class="thumbnail-container">
-                        {% if preview_image %}
-                            {% set filename = preview_image.split('/')[-1] %}
-                            <img data-src="{{ url_for('gradio_files', filename=filename) }}"
-                                 alt="{{ video.video_name }} preview"
-                                 class="thumbnail"
-                                 loading="lazy"
-                                 decoding="async"
-                                 width="64"
-                                 height="48"
-                                 style="aspect-ratio: 64/48;"
-                                 onload="this.src = this.dataset.src; this.setAttribute('data-loaded', 'true')">
-                        {% else %}
-                            <div class="thumbnail-placeholder">
-                                <span>No Preview</span>
-                            </div>
-                        {% endif %}
-                    </div>
+                    <img src="{{ preview_image }}" alt="Preview" class="thumbnail">
                 {% endfor %}
-            {% else %}
-                <div class="no-previews">
-                    <i class="fas fa-image"></i>
-                    <span>No previews available</span>
-                </div>
-            {% endif %}
+            </div>
         </div>
-        
-        <a href="{{ video.url }}" 
-           class="video-link"
-           target="_blank"
-           rel="noopener noreferrer">
-            View Full Video
-        </a>
+        {% endfor %}
+        <a href="{{ video.url }}" class="video-link">View Video</a>
     </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const thumbnails = document.querySelectorAll('.thumbnail');
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            cursor: zoom-out;
-        `;
-        
-        document.body.appendChild(overlay);
-    
-        thumbnails.forEach(thumb => {
-            thumb.addEventListener('click', () => {
-                const img = document.createElement('img');
-                img.src = thumb.src.replace('/64x48/', '/original/');
-                img.style.maxWidth = '90vw';
-                img.style.maxHeight = '90vh';
-                
-                overlay.innerHTML = '';
-                overlay.appendChild(img);
-                overlay.style.display = 'flex';
-            });
-        });
-    
-        overlay.addEventListener('click', () => {
-            overlay.style.display = 'none';
-        });
-    });
-</script>
 </body>
 </html>
 """, videos=videos)
