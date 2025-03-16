@@ -183,15 +183,11 @@ async def save_video():
                         video_path=url,
                         api_name="/predict"
                 )
-                if result:
-                    preview_images = ""
-                    for i in result:
-                        preview_images+=f"{i},"
-                        
+                if result: 
                         #Database operations moved to executor to keep async context
                         def db_operations():
                             if preview_images:
-                                preview_str = ','.join(preview_images)
+                                preview_str = ','.join(result)
                                 cursor.execute("""
                                     INSERT INTO videos 
                                     (user_id, username, chat_id, url, video_name, preview_images) 
