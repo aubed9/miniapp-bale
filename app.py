@@ -126,6 +126,11 @@ def validate_init_data(init_data):
         return False, "Invalid hash, data may be tampered"
     return True, data_dict
 
+# Add this before your route definitions
+@app.route('/gradio/<path:filename>')
+def gradio_files(filename):
+    return send_from_directory('/tmp/gradio', filename)
+
 # Route to save video data
 @app.route('/save_video', methods=['POST'])
 def save_video():
@@ -181,10 +186,19 @@ def save_video():
                     video_path=url,
                     api_name="/predict"
             )
+# Replace the preview_images handling code with:
             if result:
-                preview_images = ""
-                for i in result:
-                    preview_images+=f"{i},"
+                preview_images = []
+                for img_path in result:
+                    # Convert Gradio paths to web-accessible URLs
+                    if img_path.startswith('/tmp/gradio/'):
+                        filename = os.path.basename(img_path)
+                        preview_images.append(f'/gradio/{filename}')
+                if preview_images:
+                    # Join with commas and remove trailing comma
+                    preview_str = ','.join(preview_images)
+                    cursor.execute("INSERT INTO videos (...) VALUES (..., %s)",
+                                  (preview_str,))
                 # Save video data to the database
                 cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
                             (user_id, username, chat_id, url, name, preview_images))
@@ -394,26 +408,105 @@ def dashboard():
             color: blue;
             text-decoration: none;
         }
+        .thumbnail {
+            background: linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%);
+            background-size: 200% 100%;
+            animation: 1.5s shine linear infinite;
+        }
+        
+        @keyframes shine {
+            to {
+                background-position-x: -200%;
+            }
+        }
+        
+        img[data-loaded="true"] {
+            background: none;
+            animation: none;
+        }
+
     </style>
 </head>
 <body>
     <h1>Welcome to your Dashboard, {{ current_user.username }}!</h1>
-    
-    <div class="video-container">
-        {% for video in videos %}
         <div class="video-card">
-            <div class="video-name">{{ video.video_name }}</div>
-            
-            <div class="preview-thumbnails">
+        <div class="video-name">{{ video.video_name }}</div>
+        
+        <div class="preview-thumbnails">
+            {% if video.preview_images %}
                 {% for preview_image in video.preview_images %}
-                <img src="{{ preview_image }}" alt="Preview" class="thumbnail">
+                    <div class="thumbnail-container">
+                        {% if preview_image %}
+                            {% set filename = preview_image.split('/')[-1] %}
+                            <img data-src="{{ url_for('gradio_files', filename=filename) }}"
+                                 alt="{{ video.video_name }} preview"
+                                 class="thumbnail"
+                                 loading="lazy"
+                                 decoding="async"
+                                 width="64"
+                                 height="48"
+                                 style="aspect-ratio: 64/48;"
+                                 onload="this.src = this.dataset.src; this.setAttribute('data-loaded', 'true')">
+                        {% else %}
+                            <div class="thumbnail-placeholder">
+                                <span>No Preview</span>
+                            </div>
+                        {% endif %}
+                    </div>
                 {% endfor %}
-            </div>
+            {% else %}
+                <div class="no-previews">
+                    <i class="fas fa-image"></i>
+                    <span>No previews available</span>
+                </div>
+            {% endif %}
         </div>
+        
         <a href="{{ video.url }}" 
-           class="video-link">View Video</a>
-        {% endfor %}
+           class="video-link"
+           target="_blank"
+           rel="noopener noreferrer">
+            View Full Video
+        </a>
     </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const thumbnails = document.querySelectorAll('.thumbnail');
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            cursor: zoom-out;
+        `;
+        
+        document.body.appendChild(overlay);
+    
+        thumbnails.forEach(thumb => {
+            thumb.addEventListener('click', () => {
+                const img = document.createElement('img');
+                img.src = thumb.src.replace('/64x48/', '/original/');
+                img.style.maxWidth = '90vw';
+                img.style.maxHeight = '90vh';
+                
+                overlay.innerHTML = '';
+                overlay.appendChild(img);
+                overlay.style.display = 'flex';
+            });
+        });
+    
+        overlay.addEventListener('click', () => {
+            overlay.style.display = 'none';
+        });
+    });
+</script>
 </body>
 </html>
 """, videos=videos)
