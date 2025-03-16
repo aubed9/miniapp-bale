@@ -203,9 +203,9 @@ async def save_video():
             return jsonify({'message': 'Video saved successfully'}), 201
     
 
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            return jsonify({'error': 'Server error'}), 500
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return jsonify({'error': 'Server error'}), 500
         
 
 @app.route('/login', methods=['POST'])
