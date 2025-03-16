@@ -254,64 +254,68 @@ def index():
         return redirect(url_for('dashboard'))
     return render_template_string('''
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Auth Test</title>
-        <script src="https://tapi.bale.ai/miniapp.js?1"></script>
-    </head>
-    <body>
-        <h1>Auth Test</h1>
-        <p id="status">Checking authentication...</p>
-        <script>
-            window.onload = function() {
-                if (typeof Bale !== 'undefined' && Bale.WebApp) {
-                    const initData = Bale.WebApp.initData;
-                    if (initData) {
-                        fetch('/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ initData: initData }),
-                            credentials: 'include'  // Add this line
-                        })
-                        .then(response => {
-                            if (response.ok) {
-                                window.location.href = '/dashboard';
-                            } else if (response.status === 404) {
-                                return fetch('/register', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ initData: initData }),
-                                    credentials: 'include'  // Add this line for register too
-                                }).then(registerResponse => {
-                                    if (registerResponse.ok) {
-                                        window.location.href = '/dashboard';
-                                    } else {
-                                        return registerResponse.json().then(data => {
-                                            document.getElementById('status').textContent = 'Registration error: ' + data.error;
-                                        });
-                                    }
-                                });
-                            } else {
-                                return response.json().then(data => {
-                                    document.getElementById('status').textContent = 'Login error: ' + data.error;
-                                });
-                            }
-                        })
-                        .catch(error => {
-                            document.getElementById('status').textContent = 'Fetch error: ' + error.message;
-                        });
-                    } else {
-                        document.getElementById('status').textContent = 'No initData available';
-                    }
-                } else {
-                    document.getElementById('status').textContent = 'Bale mini-app script not loaded';
-                }
-            };
-        </script>
-    </body>
-    </html>
+<html>
+<head>
+    <title>Video Dashboard</title>
+    <style>
+        .video-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .video-card {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            width: 300px;
+            height: auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .video-name {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .preview-thumbnails {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px;
+        }
+        
+        .thumbnail {
+            width: 64px;
+            height: 48px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to your Dashboard, {{ current_user.username }}!</h1>
+    
+    <div class="video-container">
+        {% for video in videos %}
+        <div class="video-card">
+            <div class="video-name">{{ video.video_name }}</div>
+            
+            <div class="preview-thumbnails">
+                {% if video.preview_images %}
+                {% for preview_image in video.preview_images %}
+                <img src="{{ preview_image }}" alt="Preview" class="thumbnail">
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <a href="{{ url_for('index') }}">Back to Home</a>
+</body>
+</html>
     ''')
 
 # Add this function to fetch user videos
