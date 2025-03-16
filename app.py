@@ -177,40 +177,37 @@ async def save_video():
         # Asynchronous Gradio request
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                response = await client.post(
-                    "https://rayesh-previews.hf.space/run/predict",
-                    json={"data": [url]}
+                client = Client("rayesh/previews", download_files="downloads")
+                result = client.predict(
+                        video_path=url,
+                        api_name="/predict"
                 )
-                response.raise_for_status()
-                result = response.json()["data"][0]
-                
-                preview_images = []
-                for img_path in result:
-                    if img_path.startswith('/tmp/gradio/'):
-                        filename = os.path.basename(img_path)
-                        preview_images.append(f'/gradio/{filename}')
+                if result:
+                    preview_images = ""
+                    for i in result:
+                        preview_images+=f"{i},"
                         
-                # Database operations moved to executor to keep async context
-                def db_operations():
-                    if preview_images:
-                        preview_str = ','.join(preview_images)
-                        cursor.execute("""
-                            INSERT INTO videos 
-                            (user_id, username, chat_id, url, video_name, preview_images) 
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (user_id, username, chat_id, url, name, preview_str))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO videos 
-                            (user_id, username, chat_id, url, video_name) 
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (user_id, username, chat_id, url, name))
-                        
-                    conn.commit()
-                    conn.close()
+                        #Database operations moved to executor to keep async context
+                        def db_operations():
+                            if preview_images:
+                                preview_str = ','.join(preview_images)
+                                cursor.execute("""
+                                    INSERT INTO videos 
+                                    (user_id, username, chat_id, url, video_name, preview_images) 
+                                    VALUES (%s, %s, %s, %s, %s, %s)
+                                """, (user_id, username, chat_id, url, name, preview_str))
+                            else:
+                                cursor.execute("""
+                                    INSERT INTO videos 
+                                    (user_id, username, chat_id, url, video_name) 
+                                    VALUES (%s, %s, %s, %s, %s)
+                                """, (user_id, username, chat_id, url, name))
+                                
+                            conn.commit()
+                            conn.close()
                 
-                # Run blocking database operations in executor
-                await asyncio.get_event_loop().run_in_executor(None, db_operations)
+                        # Run blocking database operations in executor
+                        await asyncio.get_event_loop().run_in_executor(None, db_operations)
                 
                 return jsonify({'message': 'Video saved successfully'}), 201
 
