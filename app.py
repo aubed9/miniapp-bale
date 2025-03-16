@@ -124,48 +124,65 @@ def validate_init_data(init_data):
         return False, "Invalid hash, data may be tampered"
     return True, data_dict
 
-# Routes
-@app.route('/register', methods=['POST'])
-def register():
-    init_data = request.get_json().get('initData')
-    if not init_data:
-        return jsonify({'error': 'Missing initData'}), 400
-    is_valid, result = validate_init_data(init_data)
-    if not is_valid:
-        return jsonify({'error': result}), 400
-    data_dict = result
-    user_json = data_dict.get('user')
-    if not user_json:
-        return jsonify({'error': 'Missing user data'}), 400
+# Route to save video data
+@app.route('/save_video', methods=['POST'])
+def save_video():
+    # Get JSON data from the bot request
+    data = request.get_json()
+    bale_user_id = data.get('user_id')
+    username = data.get('username')
+    video_data = data.get('video')
+    chat_id = data.get('chat_id')
+    # Validate required fields
+    if not bale_user_id or not username or not video_data:
+        return jsonify({'error': 'Missing bale_user_id, username, or video data'}), 400
+
     try:
-        user_data = json.loads(user_json)
-        bale_user_id = user_data['id']
-        username = user_data.get('username', '')
-    except (json.JSONDecodeError, KeyError):
-        return jsonify({'error': 'Invalid user data'}), 400
-    try:
+        # Connect to the database
         conn = mysql.connector.connect(
             host='annapurna.liara.cloud',
             user='root',
-            password='4zjqmEfeRhCqYYDhvkaODXD3',
-            database='users',
             port=32002,
+            password='4zjqmEfeRhCqYYDhvkaODXD3',
+            database='users'
         )
         cursor = conn.cursor()
+
+        # Check if user exists by bale_user_id
         cursor.execute("SELECT id FROM users WHERE bale_user_id = %s", (bale_user_id,))
-        if cursor.fetchone():
-            conn.close()
-            return jsonify({'error': 'User already exists'}), 400
-        cursor.execute("INSERT INTO users (bale_user_id, username) VALUES (%s, %s)", 
-                       (bale_user_id, username))
-        user_id = cursor.lastrowid
+        user = cursor.fetchone()
+
+        if user:
+            # User exists, use their ID
+            user_id = user[0]
+            cursor.execute("UPDATE users SET chat_id = %s WHERE id = %s", (chat_id, user[0]))
+        else:
+            # Register new user
+            cursor.execute("INSERT INTO users (bale_user_id, username) VALUES (%s, %s)", 
+                          (bale_user_id, username))
+            conn.commit()
+            user_id = cursor.lastrowid  # Get the new user's ID
+
+        # Extract video properties
+        
+        url = video_data.get('url')
+        name = video_data.get('video_name')
+        preview_images = video_data.get('preview_images')
+
+        # Validate video properties
+        if not all([chat_id, url, name, preview_images]):
+            return jsonify({'error': 'Missing video properties'}), 400
+
+        # Save video data to the database
+        cursor.execute("INSERT INTO videos (user_id, chat_id, url, name, preview_images) VALUES (%s, %s, %s, %s, %s)",
+                       (user_id, chat_id, url, name, preview_images))
         conn.commit()
         conn.close()
-        user = User(user_id, bale_user_id, username)
-        login_user(user)
-        return jsonify({'message': 'User registered and logged in successfully'}), 201
+
+        return jsonify({'message': 'Video saved successfully'}), 201
+
     except Exception as e:
-        print(f"Error in register: {e}")
+        print(f"Error in save_video: {e}")
         return jsonify({'error': 'Database error'}), 500
 
 @app.route('/login', methods=['POST'])
