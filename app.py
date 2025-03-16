@@ -176,7 +176,7 @@ def save_video():
         try: 
             client = Client("rayesh/previews")
             result = client.predict(
-                    video_path={"video":handle_file(url)},
+                    video_path=url,
                     api_name="/predict"
             )
             if result:
