@@ -188,19 +188,21 @@ async def save_video():
                     for i in result:
                         preview_images+=f"{i},"
                     # Save video data to the database
-                    cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
-                                (user_id, username, chat_id, url, name, preview_images))
-                    conn.commit()
-                    conn.close()
+                    try:
+                        cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
+                                    (user_id, username, chat_id, url, name, preview_images))
+                        conn.commit()
+                        conn.close()
+                    except mysql.connector.Error as db_err:
+                        print(f"Database error: {db_err}")
+                        return jsonify({'error': 'Database operation failed'}), 500
     
             except:
                 return jsonify({'error': 'Missin preview images'}), 400
     
             return jsonify({'message': 'Video saved successfully'}), 201
     
-        except mysql.connector.Error as db_err:
-            print(f"Database error: {db_err}")
-            return jsonify({'error': 'Database operation failed'}), 500
+
         except Exception as e:
             print(f"Unexpected error: {e}")
             return jsonify({'error': 'Server error'}), 500
