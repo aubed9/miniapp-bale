@@ -7,7 +7,7 @@ fastapi==0.115.11
 fastapi-sessions==0.3.2
 Flask==3.1.0
 Flask-Login==0.6.3
-"flask[async]"
+flask[async]==2.3.2
 gradio-client
 h11==0.14.0
 idna==3.10
