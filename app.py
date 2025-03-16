@@ -8,6 +8,7 @@ from gradio_client import Client, handle_file
 import asyncio
 import httpx
 
+
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'A1u3b8e0d@#'  # Replace with a secure key in production
@@ -17,7 +18,6 @@ app.secret_key = 'A1u3b8e0d@#'  # Replace with a secure key in production
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
-
 
 # MySQL database setup
 def init_db():
