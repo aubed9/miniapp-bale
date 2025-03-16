@@ -173,7 +173,7 @@ def save_video():
             return jsonify({'error': 'Missing video properties'}), 400
 
         # Save video data to the database
-        cursor.execute("INSERT INTO videos (user_id, chat_id, url) VALUES (%s, %s, %s, %s, %s)",
+        cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name) VALUES (%s, %s, %s, %s, %s)",
                        (user_id, username, chat_id, url, name))
         conn.commit()
         conn.close()
