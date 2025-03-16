@@ -408,15 +408,15 @@ def dashboard():
                 <img src="{{ preview_image }}" alt="Preview" class="thumbnail">
                 {% endfor %}
             </div>
-            
-            <a href="{{ url_for('view_video', video_id=video.video_name|urlencode) }}" 
-               class="video-link">View Video</a>
         </div>
+        <a href="{{ video.url }}" 
+           class="video-link">View Video</a>
         {% endfor %}
     </div>
 </body>
 </html>
 """, videos=videos)
+
 
 
 if __name__ == '__main__':
