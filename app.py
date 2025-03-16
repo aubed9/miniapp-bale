@@ -128,7 +128,7 @@ def validate_init_data(init_data):
 
 # Route to save video data
 @app.route('/save_video', methods=['POST'])
-def save_video():
+async def save_video():
     # Get JSON data from the bot request
     data = request.get_json()
     bale_user_id = data.get('user_id')
@@ -141,7 +141,7 @@ def save_video():
 
     try:
         # Connect to the database
-        conn = mysql.connector.connect(
+        conn = await mysql.connector.connect(
             host='annapurna.liara.cloud',
             user='root',
             port=32002,
@@ -176,8 +176,8 @@ def save_video():
 
         
         try: 
-            client = Client("rayesh/previews", download_files="downloads")
-            result = client.predict(
+            client = await Client("rayesh/previews", download_files="downloads")
+            result = await client.predict(
                     video_path=url,
                     api_name="/predict"
             )
@@ -186,7 +186,7 @@ def save_video():
                 for i in result:
                     preview_images+=f"{i},"
                 # Save video data to the database
-                cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
+                await cursor.execute("INSERT INTO videos (user_id, username, chat_id, url, video_name, preview_images) VALUES (%s, %s, %s, %s, %s, %s)",
                             (user_id, username, chat_id, url, name, preview_images))
                 conn.commit()
                 conn.close()
@@ -201,8 +201,8 @@ def save_video():
         return jsonify({'error': 'Database error'}), 500
 
 @app.route('/login', methods=['POST'])
-def login():
-    init_data = request.get_json().get('initData')
+async def login():
+    init_data = await request.get_json().get('initData')
     if not init_data:
         return jsonify({'error': 'Missing initData'}), 400
     is_valid, result = validate_init_data(init_data)
@@ -218,7 +218,7 @@ def login():
     except (json.JSONDecodeError, KeyError):
         return jsonify({'error': 'Invalid user data'}), 400
     try:
-        conn = mysql.connector.connect(
+        conn = await mysql.connector.connect(
             host='annapurna.liara.cloud',
             user='root',
             password='4zjqmEfeRhCqYYDhvkaODXD3',
@@ -227,7 +227,7 @@ def login():
         )
         cursor = conn.cursor()
         cursor.execute("SELECT id, bale_user_id, username FROM users WHERE bale_user_id = %s", (bale_user_id,))
-        user_data = cursor.fetchone()
+        user_data = await cursor.fetchone()
         conn.close()
         if user_data:
             user = User(user_data[0], user_data[1], user_data[2])
@@ -240,7 +240,7 @@ def login():
 
 @app.route('/logout')
 @login_required
-def logout():
+async def logout():
     logout_user()
     return redirect(url_for('index'))
 
@@ -250,7 +250,7 @@ def protected():
     return jsonify({'message': f'Hello, {current_user.username}! This is a protected route.'})
 
 @app.route('/')
-def index():
+async def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template_string('''
@@ -349,8 +349,8 @@ def get_user_videos(user_id):
 # Modify the dashboard route to include video data
 @app.route('/dashboard', methods=['GET'])
 @login_required
-def dashboard():
-    videos = get_user_videos(current_user.id)
+async def dashboard():
+    videos = await get_user_videos(current_user.id)
     return render_template_string("""<!DOCTYPE html>
 <html>
 <head>
